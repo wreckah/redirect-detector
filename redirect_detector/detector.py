@@ -48,7 +48,6 @@ def detect(url: str,
         str -- [description]
     """
     logger.debug('Start processing %s', url)
-    requests_params['allow_redirects'] = False
     count = 1
     history = set()
 
@@ -85,25 +84,36 @@ def _read_url(url: str, max_body_size: int, **requests_params) -> requests.model
         requests.models.Response -- HTTP response
     """
     requests_params['stream'] = True
+    requests_params['allow_redirects'] = False
 
-    # We can use HEAD request instead of GET to get HTTP status code
-    # and Location header, but some HTTP servers do not support HEAD method.
-    with requests.get(url, **requests_params) as resp:
-        logger.debug('GET %s', url)
-        if 300 <= resp.status_code < 400:
-            # Do not try to read body of redirects.
-            return resp
+    logger.debug('GET %s', url)
+    with requests.Session() as session:
+        # OMG requests, are you kidding me?
+        # You tries to read a whole response body with
+        # allow_redirects=False and stream=True?!
+        # We should better have chosen urllib %)
+        session.resolve_redirects = _resolve_redirects
 
-        read = 0
-        while True:
-            data = resp.raw.read(READ_CHUNK_SIZE)
-            if not data:
-                break
-            logger.debug('Read %s bytes of response', len(data))
-            read += len(data)
-            if read > max_body_size:
-                raise MaxResponseSizeError()
-        return resp
+        # We can use HEAD request instead of GET to get HTTP
+        # status code and Location header, but some HTTP servers
+        # do not support HEAD method.
+        resp = session.get(url, **requests_params)
+
+        try:
+          if 300 <= resp.status_code < 400:
+              # Do not try to read body of redirects.
+              return resp
+
+          read = 0
+          for chunk in resp.iter_content(chunk_size=READ_CHUNK_SIZE):
+              logger.debug('Read %s bytes of response', len(chunk))
+              read += len(chunk)
+              if read > max_body_size:
+                  raise MaxResponseSizeError()
+          return resp
+
+        finally:
+          resp.close()
 
 
 def _parse_location(location: str, request_url: str) -> str:
@@ -131,3 +141,11 @@ def _parse_location(location: str, request_url: str) -> str:
     parts = list(urlparse(request_url))[0:2]
     parts.append(location)
     return '%s://%s%s' % tuple(parts)
+
+
+def _resolve_redirects(resp, req, **kwargs):
+    """
+    Patch requests.Session.resolve_redirects by NOT READING
+    response's body without explicit read call.
+    """
+    return iter([resp])

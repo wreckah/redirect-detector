@@ -67,3 +67,17 @@ class DetectorTestCase(HttpServerMixin, TestCase):
     def test_endless_body(self):
         with self.assertRaises(MaxResponseSizeError):
             detect(self.base_url + '/endless')
+
+    @http_responses({
+        '/endless_redirect': {
+            'status_code': 307,
+            'headers': {'location': '/document'},
+            'body': endless_body,
+        },
+        '/document': {
+            'status_code': 200,
+        },
+    })
+    def test_redirect_endless_body(self):
+        url = self.base_url + '/endless_redirect'
+        self.assertEqual(detect(url), self.base_url + '/document')
