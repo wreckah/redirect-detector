@@ -3,7 +3,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 
 
-RESET_BY_PEER_ERRNO = 104
 DEFAULT_URLS = {
     '/': {
         'status_code': 200,
@@ -64,10 +63,8 @@ def http_handler_factory(urls: object):
               for chunk in body():
                   try:
                       self.wfile.write(chunk.encode('utf-8'))
-                  except ConnectionResetError as err:
-                      if err.errno is RESET_BY_PEER_ERRNO:
-                          return
-                      raise err
+                  except (ConnectionResetError, BrokenPipeError) as err:
+                      return
           else:
               self.wfile.write(body.encode('utf-8'))
 
