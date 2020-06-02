@@ -4,7 +4,7 @@ from os import environ
 config = ChainMap(environ, {
   'READ_CHUNK_SIZE': 64 * 1024,  # Chunk size for reading request's body.
   'MAX_REDIRECTS': 10,
-  'MAX_BODY_SIZE': 1024 * 1024 * 1024,  # 1 Megabyte
+  'MAX_BODY_SIZE': 1024 * 1024,  # 1 Megabyte
   'LOG_LEVEL': 'ERROR',
 })
 
